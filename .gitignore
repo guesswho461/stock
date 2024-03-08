@@ -1,0 +1,9 @@
+/*
+!CMakeLists.txt
+!.gitignore
+!.gitmodules
+!cmake/
+!inc/
+!src/
+node_modules
+package-lock.json
