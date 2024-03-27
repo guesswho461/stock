@@ -7,12 +7,12 @@
 #define TW_STOCK_LATEST_DAILY_JSON_PATH_FIELD "/tables/8/fields"
 #define TW_STOCK_LATEST_DAILY_JSON_PATH_DATE "/date"
 
+#include <iostream>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <iostream>
 
 #include "curl/curl.h"
 #include "curl/easy.h"
@@ -24,6 +24,7 @@
 
 DEFINE_string(db, "test.db", "stock db file");
 DEFINE_string(date, "latest", "the target date to get, eg: 20240131");
+DEFINE_bool(showDatesInDB, false, "to show the date in the db");
 
 std::unordered_map<std::string, std::string> fieldMappingTable = {
     {"證券代號", "tseINDEX"},    {"證券名稱", "tseNAME"},
@@ -126,55 +127,66 @@ int main(int argc, char **argv) {
   StockDataTable_T stockDataTable;
   std::string jsonStr;
 
-  std::cout << "to get " << FLAGS_date
-            << " tw stock data from server and save to db" << std::endl;
-
-  if (FLAGS_date != "latest") {
-    url.append("&date=");
-    url.append(FLAGS_date);
-  }
-
   rc = sqlite3_open(FLAGS_db.c_str(), &db);
   if (rc) {
     std::cout << "db open failed (" << rc << ")" << std::endl;
     return ERROR;
   }
 
-  curl_global_init(CURL_GLOBAL_ALL);
-  curl = curl_easy_init();
+  if (FLAGS_showDatesInDB) {
+    std::vector<std::string> dates;
+    GetDates(db, dates);
+    std::cout << "dates: ";
+    for (auto &date : dates) {
+      std::cout << date << ", ";
+    }
+    std::cout << std::endl;
+  } else {
+    std::cout << "to get " << FLAGS_date
+              << " tw stock data from server and save to db" << std::endl;
 
-  if (!curl) {
-    std::cout << "curl open failed" << std::endl;
-    sqlite3_close(db);
-    return ERROR;
-  }
+    if (FLAGS_date != "latest") {
+      url.append("&date=");
+      url.append(FLAGS_date);
+    }
 
-  rc = WebApiGet(curl, url, jsonStr);
-  if (rc) {
-    std::cout << "to get tw stock data from server failed (" << rc << ")"
-              << std::endl;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+
+    if (!curl) {
+      std::cout << "curl open failed" << std::endl;
+      sqlite3_close(db);
+      return ERROR;
+    }
+
+    rc = WebApiGet(curl, url, jsonStr);
+    if (rc) {
+      std::cout << "to get tw stock data from server failed (" << rc << ")"
+                << std::endl;
+      curl_easy_cleanup(curl);
+      curl_global_cleanup();
+      sqlite3_close(db);
+      return ERROR;
+    }
+    jsonStr.erase(std::remove(jsonStr.begin(), jsonStr.end(), '\n'),
+                  jsonStr.cend());
+    rc = ParseStockData(jsonStr, stockDataTable);
+    if (rc) {
+      std::cout << "to parse the tw stock data failed (" << rc << ")"
+                << std::endl;
+      curl_easy_cleanup(curl);
+      curl_global_cleanup();
+      sqlite3_close(db);
+      return ERROR;
+    }
+
+    std::cout << "saving to db..." << std::endl;
+    SaveToDB(db, stockDataTable, NULL);
+
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    sqlite3_close(db);
-    return ERROR;
-  }
-  jsonStr.erase(std::remove(jsonStr.begin(), jsonStr.end(), '\n'),
-                jsonStr.cend());
-  rc = ParseStockData(jsonStr, stockDataTable);
-  if (rc) {
-    std::cout << "to parse the tw stock data failed (" << rc << ")"
-              << std::endl;
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
-    sqlite3_close(db);
-    return ERROR;
   }
 
-  std::cout << "saving to db..." << std::endl;
-  SaveToDB(db, stockDataTable, NULL);
-
-  curl_easy_cleanup(curl);
-  curl_global_cleanup();
   sqlite3_close(db);
 
   std::cout << "done" << std::endl;

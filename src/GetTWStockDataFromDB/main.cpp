@@ -21,7 +21,7 @@ DEFINE_int32(log_level, 3, "log level, 0: no log, 4: most detailed");
 
 const std::unordered_map<std::string,
                          std::tuple<std::string, route_fn_prototype>>
-    route_fn_table = {{"/MaxQuantity", {"GET", GetMaxQuantity}}};
+    route_fn_table = {{"/MaxQuantity", {"POST", GetMaxQuantity}}};
 
 static void callback(struct mg_connection* c, int ev, void* ev_data) {
   if (ev != MG_EV_HTTP_MSG || db == NULL) return;
@@ -31,7 +31,9 @@ static void callback(struct mg_connection* c, int ev, void* ev_data) {
     const auto value = route_fn_table.at(key);
     const auto method = std::get<0>(value);
     const auto route_fn = std::get<1>(value);
-    if (mg_match(hm->method, mg_str(method.c_str()), NULL)) {
+    if (mg_match(hm->method, mg_str("OPTIONS"), NULL)) {
+      rc = 200;
+    } else if (mg_match(hm->method, mg_str(method.c_str()), NULL)) {
       ret_msg.clear();
       rc = route_fn(db, hm->body, ret_msg);
     } else {
@@ -42,7 +44,11 @@ static void callback(struct mg_connection* c, int ev, void* ev_data) {
     rc = 404;
     ret_msg.assign("unsupported url");
   }
-  mg_http_reply(c, rc, "Content-Type: application/json\r\n",
+  mg_http_reply(c, rc,
+                "Content-Type: application/json\n"
+                "Access-Control-Allow-Origin:*\n"
+                "Access-Control-Allow-Headers: X-Requested-With, Content-Type, "
+                "Accept\r\n",
                 ret_msg.append("\r\n").c_str());
 }
 

@@ -81,7 +81,7 @@ int32_t GetTables(sqlite3 *db, std::vector<std::string> &tableNames) {
   return rc;
 }
 
-int32_t GetLatestValue(sqlite3 *db, std::string tableName,
+int32_t GetLatestValue(sqlite3 *db, const std::string &tableName,
                        const std::string &date, StockData_T &value) {
   int32_t rc = 0;
   char *zErrMsg = 0;
@@ -103,5 +103,27 @@ int32_t GetLatestValue(sqlite3 *db, const std::string &date,
     GetLatestValue(db, tableName, date, value);
     datas.emplace_back(value);
   }
+  return 0;
+}
+
+int32_t GetColumnValues(sqlite3 *db, const std::string &tableName,
+                        const std::string &columnName,
+                        std::vector<std::string> &values) {
+  int32_t rc = 0;
+  char *zErrMsg = 0;
+  std::string sql = "SELECT ";
+  sql.append(columnName);
+  sql.append(" FROM ");
+  sql.append(tableName);
+  sql.append(" ;");
+  rc = sqlite3_exec(db, sql.c_str(), CallBackVector, &values, &zErrMsg);
+  return rc;
+}
+
+int32_t GetDates(sqlite3 *db, std::vector<std::string> &dates) {
+  std::vector<std::string> tableNames;
+  GetTables(db, tableNames);
+  auto firstTableName = tableNames.front();
+  int32_t rc = GetColumnValues(db, firstTableName, "tseDATE", dates);
   return 0;
 }

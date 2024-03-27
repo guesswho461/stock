@@ -25,5 +25,6 @@ void SaveToDB(sqlite3 *db, const StockDataTable_T &dataTable,
               progress_callback callback);
 int32_t GetLatestValue(sqlite3 *db, const std::string &date,
                        StockDataList_T &datas);
+int32_t GetDates(sqlite3 *db, std::vector<std::string> &dates);
 
 #endif
